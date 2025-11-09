@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AFK Zone - 55 HUD</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+</head>
+<body style="background: transparent !important;">
+    <div id="hud" class="hidden">
+        <div class="hud-container">
+            <div class="hud-header">
+                <div class="hud-icon">
+                    <i class="fa-solid fa-bed"></i>
+                </div>
+                <div class="hud-title">AFK</div>
+            </div>
+            
+            <div class="hud-content">
+                <div class="hud-row">
+                    <div class="hud-item">
+                        <i class="fa-solid fa-location-dot"></i>
+                        <span class="label">Zone</span>
+                    </div>
+                    <span class="value" id="zoneName">-</span>
+                </div>
+                <div class="hud-row">
+                    <div class="hud-item">
+                        <i class="fa-solid fa-stopwatch"></i>
+                        <span class="label">AFK Tijd</span>
+                    </div>
+                    <span class="value" id="afkDuration">00:00:00</span>
+                </div>
+
+                <!-- Changed label to show countdown to next reward -->
+                <div class="hud-row">
+                    <div class="hud-item">
+                        <i class="fa-solid fa-hourglass-half"></i>
+                        <span class="label">Volgende Beloning</span>
+                    </div>
+                    <span class="value" id="timer">00:00</span>
+                </div>
+            </div>
+            
+            <div class="hud-footer">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <div class="hud-brand">55 Development</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
