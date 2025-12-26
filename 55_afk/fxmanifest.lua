@@ -3,7 +3,7 @@ game 'gta5'
 
 author '55 Development'
 description '55 Development I Afk zone'
-version '1.0.0'
+version '1.1.0'
 
 shared_scripts {
     '@ox_lib/init.lua',
@@ -15,7 +15,6 @@ client_scripts {
 }
 
 server_scripts {
-    '@oxmysql/lib/MySQL.lua',
     'server.lua'
 }
 
