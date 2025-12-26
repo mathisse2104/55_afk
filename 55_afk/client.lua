@@ -1,105 +1,123 @@
 local ESX = exports["es_extended"]:getSharedObject()
+
 local isAFK = false
+local isActivating = false
 local inZone = false
 local currentZone = nil
 local afkTimer = 0
 local lastPos = nil
-local isActivating = false
+local spawnedPeds = {}
 
--- Make blips for afk zone
+-- BLIPS
 CreateThread(function()
     if not Shared.Config.Blips.Enabled then return end
 
     for _, zone in pairs(Shared.Config.Zones) do
-        -- Radius-blip
-        local radiusBlip = AddBlipForRadius(zone.coords.x, zone.coords.y, zone.coords.z, zone.radius)
-        SetBlipHighDetail(radiusBlip, true)
+        local radiusBlip = AddBlipForRadius(zone.coords.xyz, zone.radius)
         SetBlipColour(radiusBlip, Shared.Config.Blips.Color)
         SetBlipAlpha(radiusBlip, 80)
 
-        -- Point blip
-        local blip = AddBlipForCoord(zone.coords.x, zone.coords.y, zone.coords.z)
+        local blip = AddBlipForCoord(zone.coords.xyz)
         SetBlipSprite(blip, Shared.Config.Blips.Sprite)
-        SetBlipDisplay(blip, 4)
         SetBlipScale(blip, Shared.Config.Blips.Scale)
         SetBlipColour(blip, Shared.Config.Blips.Color)
-        SetBlipAsShortRange(blip, true)
 
         BeginTextCommandSetBlipName("STRING")
-        AddTextComponentString(zone.name or Shared.Config.Blips.Name or "AFK Zone")
+        AddTextComponentString(zone.name)
         EndTextCommandSetBlipName(blip)
     end
 end)
 
--- Check if player is in afk zone
+
+-- ZONE CHECK 
 CreateThread(function()
     while true do
         Wait(1000)
-        local ped = PlayerPedId()
-        local coords = GetEntityCoords(ped)
+        local coords = GetEntityCoords(PlayerPedId())
+
         local wasInZone = inZone
         inZone = false
         currentZone = nil
 
         for _, zone in pairs(Shared.Config.Zones) do
-            if #(coords - zone.coords) < zone.radius then
+            if #(coords - zone.coords) <= zone.radius then
                 inZone = true
                 currentZone = zone.name
                 break
             end
         end
 
-       -- If players not in afk zone
-        if not inZone and (isAFK or isActivating) then
-            if isAFK then
-                StopAFK()
-                lib.notify({
-                    title = "AFK",
-                    description = "You have left the AFK Zone.",
-                    type = "error"
-                })
-            end
-            if isActivating then
-                isActivating = false
-                SendNUIMessage({ action = "hideHUD" })
-            end
+        -- Alleen stoppen als je de zone verlaat
+        if wasInZone and not inZone and isAFK then
+            StopAFK("Je hebt de AFK-zone verlaten")
         end
     end
 end)
 
--- Command /afk
-RegisterCommand("afk", function()
-    if not inZone then
-        lib.notify({
-            title = "AFK",
-            description = "You must be in the AFK zone to do this!",
-            type = "error"
-        })
-        return
-    end
+--------------------------------------------------
+-- NPC SPAWNEN & INTERACTIE (MET STOP OPTIE)
+--------------------------------------------------
+CreateThread(function()
+    -- npc inladen
+    local model = GetHashKey(Shared.Config.NPCModel)
+    RequestModel(model)
+    while not HasModelLoaded(model) do Wait(0) end
 
-    if isAFK then
-        lib.notify({
-            title = "AFK",
-            description = "You're already AFK!",
-            type = "info"
-        })
-        return
-    end
+    for i, zone in pairs(Shared.Config.Zones) do
+        local npc = CreatePed(4, model, zone.coords.x, zone.coords.y, zone.coords.z - 1.0, zone.heading or 0.0, false, false)
+        
+        SetEntityAsMissionEntity(npc, true, true)
+        SetBlockingOfNonTemporaryEvents(npc, true)
+        FreezeEntityPosition(npc, true)
+        SetEntityInvincible(npc, true)
 
-    if isActivating then
-        lib.notify({
-            title = "AFK",
-            description = "AFK is already activating, please wait...",
-            type = "info"
+        -- OX_TARGET Interactie
+        exports.ox_target:addLocalEntity(npc, {
+            {
+                name = 'afk_start_'..i,
+                label = 'Start AFK Modus',
+                icon = 'fa-solid fa-bed',
+                distance = 2.5,
+                canInteract = function()
+                    return not isAFK
+                end,
+                onSelect = function()
+                    if isActivating then
+                        lib.notify({ title = "AFK", description = "AFK wordt al geactiveerd", type = "info" })
+                        return
+                    end
+                    StartAFKActivation()
+                end
+            },
+            {
+                name = 'afk_stop_'..i,
+                label = 'Stop AFK Modus',
+                icon = 'fa-solid fa-person-walking-arrow-right',
+                distance = 2.5,
+                canInteract = function()
+                    return isAFK
+                end,
+                onSelect = function()
+                    StopAFK("AFK stop gezet")
+                end
+            }
         })
-        return
-    end
 
-    StartAFKActivation()
+        table.insert(spawnedPeds, npc)
+    end
 end)
 
--- Start afk
+-- Voorkomt dubbele peds bij restart
+AddEventHandler('onResourceStop', function(resourceName)
+    if (GetCurrentResourceName() ~= resourceName) then return end
+    for _, npc in ipairs(spawnedPeds) do
+        if DoesEntityExist(npc) then
+            DeleteEntity(npc)
+        end
+    end
+end)
+
+-- AFK ACTIVEREN
 function StartAFKActivation()
     isActivating = true
     local ped = PlayerPedId()
@@ -107,132 +125,125 @@ function StartAFKActivation()
 
     lib.notify({
         title = "AFK",
-        description = ("Stay %d seconds still to be afk..."):format(Shared.Config.AFKActivationTime),
+        description = ("Blijf %d seconden stilstaan…"):format(Shared.Config.AFKActivationTime),
         type = "info"
     })
 
     CreateThread(function()
         local elapsed = 0
-        while elapsed < Shared.Config.AFKActivationTime and isActivating do
+
+        while elapsed < Shared.Config.AFKActivationTime do
             Wait(1000)
-            
+
+            -- Check of speler nog in zone is
             if not inZone then
                 isActivating = false
-                SendNUIMessage({ action = "hideHUD" })
-                return
-            end
-
-            local newPos = GetEntityCoords(ped)
-            if #(newPos - lastPos) > 0.3 then
-                isActivating = false
-                SendNUIMessage({ action = "hideHUD" })
                 lib.notify({
                     title = "AFK",
-                    description = "You moved! try again.",
+                    description = "Je bent uit de AFK-zone gegaan",
                     type = "error"
                 })
                 return
             end
-            
+
+            -- Check beweging
+            if #(GetEntityCoords(ped) - lastPos) > 0.5 then 
+                isActivating = false
+                lib.notify({
+                    title = "AFK",
+                    description = "Je bewoog, probeer opnieuw",
+                    type = "error"
+                })
+                return
+            end
+
             elapsed = elapsed + 1
         end
 
-        if isActivating then
-            isActivating = false
-            isAFK = true
-            afkTimer = 0
-            lastPos = GetEntityCoords(ped)
+        -- START AFK
+        isActivating = false
+        isAFK = true
+        afkTimer = 0
+        lastPos = GetEntityCoords(ped)
 
-            -- Shouw hud
-            SendNUIMessage({
-                action = "showHUD",
-                zone = currentZone
-            })
+        TriggerServerEvent("afkzone:setAfkBucket")
 
-            SendNUIMessage({ 
-                action = "afkActive",
-                rewardInterval = Shared.Config.RewardInterval
-            })
-
-            lib.notify({
-                title = "AFK",
-                description = ("You are afk in zone: %s!"):format(currentZone),
-                type = "success"
-            })
-
-            StartAFKRewardLoop()
-        end
+        SendNUIMessage({
+            action = "showHUD",
+            zone = currentZone
+        })
+            
+        SendNUIMessage({
+            action = "afkActive",
+            rewardInterval = Shared.Config.RewardInterval
+        })
+       
+        lib.notify({
+            title = "AFK",
+            description = ("AFK geactiveerd in %s"):format(currentZone or "Zone"),
+            type = "success"
+        })
+  
+        StartAFKRewardLoop()
     end)
 end
 
- -- Stop afk
-function StopAFK()
+-- AFK STOPPEN
+function StopAFK(reason)
+    if not isAFK then return end
+
     isAFK = false
+    isActivating = false
     afkTimer = 0
+
+    TriggerServerEvent("afkzone:resetBucket")
+    
     SendNUIMessage({ action = "afkStopped" })
-    Wait(2000)
+    Wait(1500)
     SendNUIMessage({ action = "hideHUD" })
+
+    lib.notify({
+        title = "AFK",
+        description = reason or "AFK gestopt",
+        type = "info"
+    })
 end
 
 
+-- REWARD LOOP
 function StartAFKRewardLoop()
     CreateThread(function()
         while isAFK do
             Wait(1000)
-            afkTimer = afkTimer + 1
-
-            local ped = PlayerPedId()
-            local coords = GetEntityCoords(ped)
-
-            if not inZone or #(coords - lastPos) > 0.5 then
-                StopAFK()
-                lib.notify({
-                    title = "AFK",
-                    description = "You aren't AFK anymore",
-                    type = "error"
-                })
-                return
-            end
-
-            -- Update progressbar
+            afkTimer = afkTimer + 1 
+                
             local timeUntilReward = (Shared.Config.RewardInterval * 60) - (afkTimer % (Shared.Config.RewardInterval * 60))
             local percent = (timeUntilReward / (Shared.Config.RewardInterval * 60)) * 100
+
             SendNUIMessage({
                 action = "updateProgress",
                 percent = percent
             })
 
-            -- Every minute reward
             if afkTimer % (Shared.Config.RewardInterval * 60) == 0 then
                 TriggerServerEvent("afkzone:giveRewards")
-                SendNUIMessage({ 
-                    action = "rewardReceived",
-                    rewardInterval = Shared.Config.RewardInterval
-                })
-                lib.notify({
-                    title = "AFK Reward",
-                    description = ("You have received a reward %s!"):format(currentZone),
-                    type = "success"
-                })
             end
         end
     end)
 end
 
--- Command afk stop
-RegisterCommand("stopafk", function()
+
+-- COMMANDS
+RegisterCommand("afk", function()
     if isAFK then
-        StopAFK()
-        lib.notify({
-            title = "AFK",
-            description = "You are no longer AFK!",
-            type = "success"
-        })
+        lib.notify({title = "AFK", description = "Je bent al AFK", type = "error"})
+    elseif not inZone then
+        lib.notify({title = "AFK", description = "Niet in zone", type = "error"})
     else
-        lib.notify({
-            title = "AFK",
-            description = "You are not AFK!",
-            type = "error"
-        })
+        StartAFKActivation()
     end
+end)
+
+RegisterCommand("stopafk", function()
+    StopAFK("AFK stop gezet")
 end)
