@@ -1,20 +1,30 @@
 Shared = {}
 
 Shared.Config = {
-    RewardInterval = 15, -- Minutes
-    AFKActivationTime = 5, -- Seconds
+    RewardInterval = 1, -- Minuten
+    AFKActivationTime = 5, -- Seconden
+    NPCModel = 'ig_car3guy1', 
 
-    -- Zones
+    -- AFK routing buckets
+    AFKBucket = {
+        Min = 1000,
+        Max = 10000
+    },
+
+
+    -- Tip: Zorg dat de coords op de grond staan (niet in de lucht) voor de NPC
     Zones = {
         {
             name = "AFK Strand",
             coords = vector3(-1596.8313, -1021.5772, 13.0179),
-            radius = 50.0
+            radius = 50.0,
+            heading = 90.0 -- Richting waarin de NPC kijkt
         },
         {
             name = "AFK Haven",
             coords = vector3(100.0, -3000.0, 6.0),
-            radius = 40.0
+            radius = 40.0,
+            heading = 90.0
         }
     },
 
@@ -24,24 +34,24 @@ Shared.Config = {
         { item = "bread", count = 1 }
     },
 
-    -- Blip settings
+    -- Blips
     Blips = {
         Enabled = true,
         Name = "AFK Zone",
-        Sprite = 280, 
-        Color = 2,     
+        Sprite = 280,
+        Color = 2,
         Scale = 0.9
     },
 
-    -- Discord log
+    -- Discord logging
     Discord = {
-        Enabled = false,
+        Enabled = true,
         WebhookURL = "",
         Username = "55 Development",
-        AvatarURL = "",
-        ThumbnailURL = "",
-        FooterIconURL = "",
-        Titel = "💤 AFK Log",
+        AvatarURL = "https://mathisse.nl/logo.png",
+        ThumbnailURL = "https://mathisse.nl/logo.png",
+        FooterIconURL = "https://mathisse.nl/logo.png",
+        Titel = "💤 AFK Logs",
         Color = 3447003,
         FooterText = "55 Development"
     }
