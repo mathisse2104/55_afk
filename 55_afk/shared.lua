@@ -45,7 +45,7 @@ Shared.Config = {
 
     -- Discord logging
     Discord = {
-        Enabled = true,
+        Enabled = false,
         WebhookURL = "",
         Username = "55 Development",
         AvatarURL = "https://mathisse.nl/logo.png",
